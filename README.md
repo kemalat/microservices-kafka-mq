@@ -72,10 +72,25 @@ public class ShipmentDeserializer extends JsonDeserializer<Shipment> {
 ## Flow details
 When order is placed by calling `@RestController` Post API, orderService is called. Spring service `orderService` updates order object, persists it into the relational DB and calls `kafkaTemplate.send(...)` function. Callback method annoted with `@KafkaListener(topics = "order")` in Spring component of consuming microservice is called when the message is put to order topic. After consuming the order object, ShipmentService ship function is called and acknowledge is returned. 
 
-## Difference between @Component, @Service, @Controller and @Repository annotations
-Starting from Spring 2.5 annotation-based dependency injection introduced. Spring automatically scans and register classes as Spring bean which is annotated using `@Component` annotation. `@Service, @Controller and @Repository` are also Spring beans as specialized form of `@Component` annotation. Controller class of Spring MVC is annotated as `@Controller` to make it more readable. All classes annotated except Controller are Spring bean and are maintained by Spring ApplicationContext. For example DispatcherServlet looks for `@RequestMapping` on classes which are annotated using `@Controller` but not with `@Component`. `@Service and @Repository` are also component in service and persistence layer. A Spring bean in the service layer should be annotated using `@Service` instead of `@Component` annotation and a spring bean in the persistence layer should be annotated with `@Repository` annotation. For example, `@Repository` annotation also catches platform specific exceptions and re-throw them as one of Spring’s unified unchecked exceptions.
+## Notes about High Availability
+For the high availability of the Kafka service, Kafka should run in cluster mode. Kafka multi-node, multi-broker and Zookeeper cluster setups should be implemented. If you configure Kafka for testing purposes you can run the different brokers on the same machine, however for redundancy it is recommended to run a production environment on multiple computers. To keep the cluster running even if one broker fails, it is advised to setup cluster with three Kafka brokers. Topics that to be created should be replicated on the three brokers using the `replication-factor`
 
+```
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 3 --partitions 1 --topic replicated-topic
+```
+Here replication factor should be equal to the number of started Kafka Broker instances. Zookeeper keeps track of status of the Kafka cluster nodes and it also keeps track of Kafka topics, partitions etc. By means of Zookeeper multiple clients can perform simultaneous reads and writes and acts as a shared configuration service within the system. That's why availability of Zookeeper also must be secured using the cluster mode setup.
 
+To check the status of the cluster:
+```
+/usr/local/kafka/bin/kafka-topics.sh --describe --zookeeper localhost:2181 --topic replicated-topic
+Topic:replicated-topic    PartitionCount:1    ReplicationFactor:3    Configs:
+Topic: replicated-topic    Partition: 0    Leader: 0    Replicas: 0,1,2    Isr: 0,1,2
+```
 
+Here the explanation for Leader, Replicas and Isr:
 
+“Leader” is the responsible node for reads and writes on the given partition. Each node will be a leader for a randomly chosen part of partitions.
 
+“Replicas” contains the list of nodes that replicate the log for this partition. This listing contains all nodes, no matter if they are the leader or if they are currently reachable (they might be out of sync).
+
+“Isr” contains the set of “in-sync” replicas. This is the subset of replicas that are currently active and connected to the leader.
