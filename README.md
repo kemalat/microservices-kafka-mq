@@ -73,7 +73,7 @@ public class ShipmentDeserializer extends JsonDeserializer<Shipment> {
 When order is placed by calling `@RestController` Post API, orderService is called. Spring service `orderService` updates order object, persists it into the relational DB and calls `kafkaTemplate.send(...)` function. Callback method annoted with `@KafkaListener(topics = "order")` in Spring component of consuming microservice is called when the message is put to order topic. After consuming the order object, ShipmentService ship function is called and acknowledge is returned. 
 
 ## Notes about High Availability
-For the high availability of the Kafka service, Kafka should run in cluster mode. Kafka multi-node, multi-broker and Zookeeper cluster setups should be implemented. If you configure Kafka for testing purposes you can run the different brokers on the same machine, however for redundancy it is recommended to run a production environment on multiple computers. To keep the cluster running even if one broker fails, it is advised to setup cluster with three Kafka brokers. Topics that to be created should be replicated on the three brokers using the `replication-factor`
+For the high availability of the Kafka service, Kafka should run in cluster mode. Kafka multi-broker and replicated multi-node Zookeeper cluster setups should be implemented. If you configure Kafka for testing purposes you can run the different brokers on the same machine, however for redundancy it is recommended to run a production environment on multiple computers. To keep the cluster running even if one broker fails, it is advised to setup cluster with three Kafka brokers. Topics that to be created should be replicated on the three brokers using the `replication-factor`
 
 ```
 /usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 3 --partitions 1 --topic replicated-topic
@@ -94,3 +94,5 @@ Here the explanation for Leader, Replicas and Isr:
 “Replicas” contains the list of nodes that replicate the log for this partition. This listing contains all nodes, no matter if they are the leader or if they are currently reachable (they might be out of sync).
 
 “Isr” contains the set of “in-sync” replicas. This is the subset of replicas that are currently active and connected to the leader.
+
+Apart from Kafka multi-broker setup, every production environment should have a replicated Zookepeer multi-node cluster. Nodes in the ZooKeeper cluster should work together as a quorum. Quorum refers to the minimum number of nodes that need to agree on a transaction before it’s committed. A quorum needs an odd number of nodes so that it can establish a majority. An even number of nodes may result in a tie, which would mean the nodes would not reach a majority or consensus.
