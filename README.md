@@ -2,11 +2,6 @@
 
 This proof of concept application demonstrates how to utilize Apache Kafka as messaging queue/bus between Java Spring based microservices to achieve event-driven architecture. 
 
-## spring-kafka
-
-`spring-kafka` introduces Spring concepts to Kafka-based messaging solution development. High level abstraction for sending messages to Kafka is provided by `KafkaTemplate`. Application which will create work orders should insantiate `KafkaTemplate` by passing the message object and call send function. Other applications that are supposed to process work orders should register `@KafkaListener` callback. Spring Kafka support has the very similar model as the JMS support in the Spring Framework for RabbitMQ support in Spring AMQP.
-
-
 ## Publish-Subscribe Model
 By means of Publish-Subscribe Model, multiple publishers publish messages to topics hosted by brokers. Those brokers can be subscribed to by multiple subscribers. A message is broadcasted to all the subscribers of a topic. In our demonstration we start only one broker. Subscribers of Kafka broker are our microservices(order and invocing).
 
@@ -17,7 +12,11 @@ Photo credit: [link](https://forum.huawei.com/enterprise/en/profile/2966821?type
 ## Topics
 Order Microservice generating the work order puts `order` topic. Topic can has partitions to achieve the scability as explained above by means consumer groups. Number of partitions are given while creating the topic. 
 
-## spring-kafka-test
+
+## Application details
+When order is placed by calling `@RestController` Post API, orderService is called. Spring service `orderService` updates order object, persists it into the relational DB and calls `kafkaTemplate.send(...)` function. Callback method annoted with `@KafkaListener(topics = "order")` in Spring component of consuming Invoice microservice is called when the message is put to order topic. After consuming the order object, ShipmentService ship function is called and acknowledge is returned. 
+
+### spring-kafka-test
 The Spring Kafka project comes with a `spring-kafka-test` Maven library that contains a number of useful utilities such as 
 embedded Kafka broker, static methods to setup consumers/producers and to fetch results.the `EmbeddedKafkaBroker` of this library is provided for creating an embedded Kafka and an embedded Zookeeper server. For tests, an embedded Kafka server is used. In the testing flow, before executing the any tests we call `EmbeddedKafkaRule` constructor, it takes the following values as parameters.
 
@@ -27,10 +26,65 @@ embedded Kafka broker, static methods to setup consumers/producers and to fetch 
 
 `@BeforeClass` and `@ClassRule` JUnit annotations used. The BeforeClass Junit annotation indicates that the static method to which is attached must be executed once and before all tests in the class. `@BeforeClass` configures Spring Kafka to use the embedded Kafka server. We use `@ClassRule` to instantiate `EmbeddedKafkaRule` class.
 
-## Message Object
+### spring-kafka
+`spring-kafka` introduces Spring concepts to Kafka-based messaging solution development. High level abstraction for sending messages to Kafka is provided by `KafkaTemplate`. Application which will create work orders should insantiate `KafkaTemplate` by passing the message object and call send function. Other applications that are supposed to process work orders should register `@KafkaListener` callback. Spring Kafka support has the very similar model as the JMS support in the Spring Framework for RabbitMQ support in Spring AMQP.
+
+### Message Object
 The orders are written as serialized JSON and shared  between producer(order) and consumer(invoicing) microservices. Each microservice populates fields of Order class that are in the scope of their responsbility, so there is one common object travels between them. Order object  contains all the data required by other consumer microservice. Flexibility of JSON serialization enables Invoice service to read only releavant part of Order object which they are supposed to process.
 
-## Acknowledge current offset in spring kafka by manual commit
+### api/order
+Producer application is exposing the api/order web service to accept orders. Swagger UI(`http://localhost:8080/swagger-ui.html`) was integrated to application to achieve simplicity of testing. API is protected with Basic Auth. Once the Order Producer App is executed, API user record is insterted to database by calling `UserTestDataGenerator.generateTestData()` function. User/Password for API authentication is `admin/admin`. Sample JSON data for OrderDTO :
+
+```
+{
+  "billingAddress": {
+    "city": "Denizli",
+    "street": "Camlik 36",
+    "zip": "35020"
+  },
+  "customerId": 1,
+  "orderLines": [
+    {
+      "count": 2,
+      "itemId": 4      
+    }
+  ],
+  "shippingAddress": {
+    "city": "Denizli",
+    "street": "Camlik 36",
+    "zip": "35020"
+  }
+}
+```
+
+### Request Timeout Handling
+On producer microservice side, we decreased the request time in miliseconds to simulate the behaviour in case of unavailability of Kafka broker. onFailure callback is fired if send() does not return after 5 seconds. We handle this exception in RestController and return proper HTTP error code and messsage to API requstor. 
+
+```java
+		final Throwable[] result = {null};
+		ListenableFuture<SendResult<String, Order>> future = kafkaTemplate
+					.send("order", order.getId() + "created", order);
+
+		future.addCallback(new ListenableFutureCallback<SendResult<String, Order>>() {
+
+			@Override
+			public void onSuccess(SendResult<String, Order> stringOrderSendResult) {
+				System.out.println("onSuccess");
+			}
+
+			@Override
+			public void onFailure(Throwable throwable) {
+				System.out.println("onFailure");
+				result[0] = throwable.getCause();
+			}
+		});
+
+		if(result[0] != null)
+			throw new KafkaException(result[0].getMessage(),result[0].getCause());
+
+```
+
+### Acknowledge current offset in spring kafka by manual commit
 In this demonstration we used manual commit on consumer side(Invoice microservice). In order to do this, we need to disable auto-commit and set ack-mode to manual in application.properties file 
 
 Disable auto-commit:
@@ -52,7 +106,7 @@ Now we can commit the offset manually
 	}
 
 ```
-## JSON Serializer and Deserializer
+### JSON Serializer and Deserializer
 Order Java Object as JSON byte[] is sent to a Kafka topic using Spring Kafka JsonSerializer on producer side. On consumer side, we use Spring Kafka JsonDeserializer to convert JSON byte[] to Java Object. Apache Kafka stores and transports byte[]. There are several built in serializers and deserializers but it doesn’t include any for JSON. To simply things, Spring Kafka created a JsonSerializer and JsonDeserializer which we can use to convert Java Objects to and from JSON.
 
 ```java
@@ -66,8 +120,6 @@ public class InvoiceDeserializer extends JsonDeserializer<Invoice> {
 
 ```
 
-## Flow details
-When order is placed by calling `@RestController` Post API, orderService is called. Spring service `orderService` updates order object, persists it into the relational DB and calls `kafkaTemplate.send(...)` function. Callback method annoted with `@KafkaListener(topics = "order")` in Spring component of consuming Invoice microservice is called when the message is put to order topic. After consuming the order object, ShipmentService ship function is called and acknowledge is returned. 
 
 ## Notes about High Availability
 
