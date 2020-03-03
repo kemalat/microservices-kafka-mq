@@ -10,7 +10,7 @@ By means of Publish-Subscribe Model, multiple publishers publish messages to top
 Photo credit: [link](https://forum.huawei.com/enterprise/en/profile/2966821?type=posts)
 
 ## Topics
-Order Microservice generating the work order puts `order` topic. Topic can has partitions to achieve the scability as explained above by means consumer groups. Number of partitions are given while creating the topic. 
+Order Microservice generating the work order puts `order` topic. Topic can have partitions to achieve the scability as explained above by means consumer groups. Number of partitions is set while creating the topic. 
 
 
 ## Application details
