@@ -1,6 +1,6 @@
 # microservices-kafka-mq
 
-This proof of concept application demonstrates how to utilize Apache Kafka as messaging queue/bus between Java Spring based microservices to achieve event-driven architecture. 
+This proof of concept application demonstrates how to utilize Apache Kafka as messaging bus between Java Spring based microservices to achieve event-driven architecture. 
 
 ## Publish-Subscribe Model
 By means of Publish-Subscribe Model, multiple publishers publish messages to topics hosted by brokers. Those brokers can be subscribed to by multiple subscribers. A message is broadcasted to all the subscribers of a topic. In our demonstration we start only one broker. Subscribers of Kafka broker are our microservices(order and invocing).
